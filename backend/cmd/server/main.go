@@ -89,6 +89,7 @@ func run(cfg *config.Config, log *slog.Logger) error {
 	categoryRepo := repository.NewCategoryRepository(db)
 	equipmentRepo := repository.NewEquipmentRepository(db)
 	borrowRepo := repository.NewBorrowRepository(db)
+	borrowRenewalRepo := repository.NewBorrowRenewalRepository(db)
 	maintenanceRepo := repository.NewMaintenanceRepository(db)
 	reservationRepo := repository.NewReservationRepository(db)
 	auditRepo := repository.NewAuditLogRepository(db)
@@ -100,24 +101,26 @@ func run(cfg *config.Config, log *slog.Logger) error {
 	categoryService := service.NewCategoryService(categoryRepo, log)
 	equipmentService := service.NewEquipmentService(equipmentRepo, categoryRepo, userRepo, auditService, log)
 	borrowService := service.NewBorrowService(borrowRepo, equipmentRepo, auditService, log)
+	borrowRenewalService := service.NewBorrowRenewalService(borrowRenewalRepo, borrowRepo, auditService, log)
 	maintenanceService := service.NewMaintenanceService(maintenanceRepo, equipmentRepo, auditService, log)
 	reservationService := service.NewReservationService(reservationRepo, equipmentRepo, auditService, log)
-	dashboardService := service.NewDashboardService(equipmentRepo, borrowRepo, reservationRepo, log)
+	dashboardService := service.NewDashboardService(equipmentRepo, borrowRepo, borrowRenewalRepo, reservationRepo, borrowService, log)
 
 	// 处理器层
 	deps := router.Dependencies{
-		AuthHandler:        handler.NewAuthHandler(authService),
-		UserHandler:        handler.NewUserHandler(userService),
-		CategoryHandler:    handler.NewCategoryHandler(categoryService),
-		EquipmentHandler:   handler.NewEquipmentHandler(equipmentService),
-		BorrowHandler:      handler.NewBorrowHandler(borrowService),
-		MaintenanceHandler: handler.NewMaintenanceHandler(maintenanceService),
-		ReservationHandler: handler.NewReservationHandler(reservationService),
-		DashboardHandler:   handler.NewDashboardHandler(dashboardService),
-		AuditHandler:       handler.NewAuditHandler(auditService),
-		AuthService:        authService,
-		AuditService:       auditService,
-		Logger:             log,
+		AuthHandler:          handler.NewAuthHandler(authService),
+		UserHandler:          handler.NewUserHandler(userService),
+		CategoryHandler:      handler.NewCategoryHandler(categoryService),
+		EquipmentHandler:     handler.NewEquipmentHandler(equipmentService),
+		BorrowHandler:        handler.NewBorrowHandler(borrowService),
+		BorrowRenewalHandler: handler.NewBorrowRenewalHandler(borrowRenewalService),
+		MaintenanceHandler:   handler.NewMaintenanceHandler(maintenanceService),
+		ReservationHandler:   handler.NewReservationHandler(reservationService),
+		DashboardHandler:     handler.NewDashboardHandler(dashboardService),
+		AuditHandler:         handler.NewAuditHandler(auditService),
+		AuthService:          authService,
+		AuditService:         auditService,
+		Logger:               log,
 	}
 
 	engine := router.NewRouter(deps)
@@ -126,6 +129,11 @@ func run(cfg *config.Config, log *slog.Logger) error {
 		Handler:           engine,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+
+	// 后台定时将到期未归还的借用刷新为逾期（读接口也会惰性同步）。
+	sweepCtx, stopSweep := context.WithCancel(context.Background())
+	defer stopSweep()
+	go runOverdueSweeper(sweepCtx, borrowService, log)
 
 	go func() {
 		log.Info("server started", "port", cfg.ServerPort)
@@ -138,8 +146,29 @@ func run(cfg *config.Config, log *slog.Logger) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+	stopSweep()
 	log.Info("shutting down server")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return server.Shutdown(ctx)
+}
+
+// runOverdueSweeper 启动即执行一次，随后每 30 分钟扫描逾期借用。
+func runOverdueSweeper(ctx context.Context, borrowService *service.BorrowService, log *slog.Logger) {
+	sweep := func() {
+		if err := borrowService.SweepOverdue(ctx); err != nil {
+			log.Warn("sweep overdue borrows failed", "error", err)
+		}
+	}
+	sweep()
+	ticker := time.NewTicker(30 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			sweep()
+		}
+	}
 }

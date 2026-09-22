@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/labequipment/lab-equipment/internal/constants"
 	"github.com/labequipment/lab-equipment/internal/dto"
 	"github.com/labequipment/lab-equipment/internal/model"
 )
@@ -75,22 +76,76 @@ func mapBorrow(record model.BorrowRecord) dto.BorrowResponse {
 		value := string(*record.ReturnCondition)
 		returnCondition = &value
 	}
+	var pendingRenewal *dto.PendingRenewalBrief
+	for i := range record.Renewals {
+		if record.Renewals[i].Status == constants.RenewalStatusPending {
+			item := record.Renewals[i]
+			pendingRenewal = &dto.PendingRenewalBrief{
+				ID:               item.ID,
+				ExtendDays:       item.ExtendDays,
+				RequestedDueDate: item.RequestedDueDate,
+				CreatedAt:        item.CreatedAt,
+			}
+			break
+		}
+	}
+	originalExpectedReturn := record.OriginalExpectedReturn
+	if originalExpectedReturn.IsZero() {
+		originalExpectedReturn = record.ExpectedReturnDate
+	}
 	return dto.BorrowResponse{
-		ID:                 record.ID,
-		EquipmentID:        record.EquipmentID,
-		EquipmentName:      equipmentName,
-		EquipmentCode:      equipmentCode,
-		BorrowerID:         record.BorrowerID,
-		BorrowerName:       borrowerName,
-		BorrowDate:         record.BorrowDate,
-		ExpectedReturnDate: record.ExpectedReturnDate,
-		ActualReturnDate:   record.ActualReturnDate,
-		Reason:             record.Reason,
-		Status:             string(record.Status),
-		ApproverID:         record.ApproverID,
-		ApproverName:       approverName,
-		ReturnCondition:    returnCondition,
-		CreatedAt:          record.CreatedAt,
+		ID:                     record.ID,
+		EquipmentID:            record.EquipmentID,
+		EquipmentName:          equipmentName,
+		EquipmentCode:          equipmentCode,
+		BorrowerID:             record.BorrowerID,
+		BorrowerName:           borrowerName,
+		BorrowDate:             record.BorrowDate,
+		ExpectedReturnDate:     record.ExpectedReturnDate,
+		OriginalExpectedReturn: originalExpectedReturn,
+		ActualReturnDate:       record.ActualReturnDate,
+		Reason:                 record.Reason,
+		Status:                 string(record.Status),
+		ApproverID:             record.ApproverID,
+		ApproverName:           approverName,
+		ReturnCondition:        returnCondition,
+		PendingRenewal:         pendingRenewal,
+		CreatedAt:              record.CreatedAt,
+	}
+}
+
+func mapRenewal(renewal model.BorrowRenewal) dto.RenewalResponse {
+	equipmentID := uint(0)
+	equipmentName := ""
+	if renewal.Borrow != nil && renewal.Borrow.Equipment != nil {
+		equipmentID = renewal.Borrow.Equipment.ID
+		equipmentName = renewal.Borrow.Equipment.Name
+	}
+	applicantName := ""
+	if renewal.Applicant != nil {
+		applicantName = renewal.Applicant.Name
+	}
+	reviewerName := ""
+	if renewal.Reviewer != nil {
+		reviewerName = renewal.Reviewer.Name
+	}
+	return dto.RenewalResponse{
+		ID:               renewal.ID,
+		BorrowID:         renewal.BorrowID,
+		EquipmentID:      equipmentID,
+		EquipmentName:    equipmentName,
+		ApplicantID:      renewal.ApplicantID,
+		ApplicantName:    applicantName,
+		ExtendDays:       renewal.ExtendDays,
+		CurrentDueDate:   renewal.CurrentDueDate,
+		RequestedDueDate: renewal.RequestedDueDate,
+		Reason:           renewal.Reason,
+		Status:           string(renewal.Status),
+		ReviewerID:       renewal.ReviewerID,
+		ReviewerName:     reviewerName,
+		ReviewComment:    renewal.ReviewComment,
+		ReviewedAt:       renewal.ReviewedAt,
+		CreatedAt:        renewal.CreatedAt,
 	}
 }
 

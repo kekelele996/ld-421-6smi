@@ -121,6 +121,64 @@ paths:
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: 成功 }
+  /borrows/{id}/renewals:
+    get:
+      tags: [Borrow]
+      summary: 查询单笔借用的续借历史
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 成功 }
+    post:
+      tags: [Borrow]
+      summary: 借用人提交续借申请（须在预计归还日前，延长 1-7 天）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [extendDays]
+              properties:
+                extendDays: { type: integer, minimum: 1, maximum: 7 }
+                reason: { type: string, maxLength: 512 }
+      responses:
+        '200': { description: 成功 }
+        '409': { description: 已逾期/已归还/已有待审批续借/已到归还日 }
+  /renewals:
+    get:
+      tags: [Borrow]
+      summary: 分页查询续借申请（可按 status、borrow_id 筛选）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: page_size, in: query, schema: { type: integer } }
+        - { name: status, in: query, schema: { type: string, enum: [Pending, Approved, Rejected, Expired] } }
+        - { name: borrow_id, in: query, schema: { type: integer } }
+      responses:
+        '200': { description: 成功 }
+  /renewals/{id}/approve:
+    post:
+      tags: [Borrow]
+      summary: 批准续借（更新预计归还日期，保留原到期时间；并发批准只生效一次）
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 成功 }
+        '409': { description: 申请已被处理或借用已到期 }
+  /renewals/{id}/reject:
+    post:
+      tags: [Borrow]
+      summary: 驳回续借申请（不改变原借用记录）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment: { type: string, maxLength: 512 }
+      responses:
+        '200': { description: 成功 }
   /maintenance:
     get:
       tags: [Maintenance]

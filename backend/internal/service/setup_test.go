@@ -17,9 +17,12 @@ type testEnv struct {
 	db                 *gorm.DB
 	equipmentService   *EquipmentService
 	borrowService      *BorrowService
+	renewalService     *BorrowRenewalService
 	reservationService *ReservationService
 	categoryService    *CategoryService
 	equipmentRepo      repository.EquipmentRepository
+	borrowRepo         repository.BorrowRepository
+	renewalRepo        repository.BorrowRenewalRepository
 	categoryID         uint
 	ownerID            uint
 }
@@ -39,12 +42,14 @@ func newTestEnv(t *testing.T) *testEnv {
 	userRepo := repository.NewUserRepository(db)
 	equipmentRepo := repository.NewEquipmentRepository(db)
 	borrowRepo := repository.NewBorrowRepository(db)
+	renewalRepo := repository.NewBorrowRenewalRepository(db)
 	reservationRepo := repository.NewReservationRepository(db)
 	auditRepo := repository.NewAuditLogRepository(db)
 
 	auditService := NewAuditService(auditRepo, logger)
 	equipmentService := NewEquipmentService(equipmentRepo, categoryRepo, userRepo, auditService, logger)
 	borrowService := NewBorrowService(borrowRepo, equipmentRepo, auditService, logger)
+	renewalService := NewBorrowRenewalService(renewalRepo, borrowRepo, auditService, logger)
 	reservationService := NewReservationService(reservationRepo, equipmentRepo, auditService, logger)
 	categoryService := NewCategoryService(categoryRepo, logger)
 
@@ -69,9 +74,12 @@ func newTestEnv(t *testing.T) *testEnv {
 		db:                 db,
 		equipmentService:   equipmentService,
 		borrowService:      borrowService,
+		renewalService:     renewalService,
 		reservationService: reservationService,
 		categoryService:    categoryService,
 		equipmentRepo:      equipmentRepo,
+		borrowRepo:         borrowRepo,
+		renewalRepo:        renewalRepo,
 		categoryID:         category.ID,
 		ownerID:            user.ID,
 	}

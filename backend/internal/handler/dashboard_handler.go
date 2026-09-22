@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/labequipment/lab-equipment/internal/dto"
 	"github.com/labequipment/lab-equipment/internal/service"
@@ -41,11 +43,39 @@ func (h *DashboardHandler) Stats(c *gin.Context) {
 			WarrantyExpiry: equipment.WarrantyExpiry,
 		})
 	}
+	now := time.Now()
+	overdue := make([]dto.OverdueItem, 0, len(stats.OverdueBorrows))
+	for _, record := range stats.OverdueBorrows {
+		equipmentName := ""
+		equipmentCode := ""
+		if record.Equipment != nil {
+			equipmentName = record.Equipment.Name
+			equipmentCode = record.Equipment.Code
+		}
+		borrowerName := ""
+		if record.Borrower != nil {
+			borrowerName = record.Borrower.Name
+		}
+		overdue = append(overdue, dto.OverdueItem{
+			ID:                 record.ID,
+			EquipmentID:        record.EquipmentID,
+			EquipmentName:      equipmentName,
+			EquipmentCode:      equipmentCode,
+			BorrowerID:         record.BorrowerID,
+			BorrowerName:       borrowerName,
+			ExpectedReturnDate: record.ExpectedReturnDate,
+			OverdueDays:        service.OverdueDays(record.ExpectedReturnDate, now),
+		})
+	}
 	ok(c, dto.DashboardStatsResponse{
 		StatusDistribution:  stats.StatusDistribution,
+		BorrowStatusCounts:  stats.BorrowStatusCounts,
 		TopBorrows:          topBorrows,
 		ExpiringWarranty:    expiring,
+		OverdueBorrows:      overdue,
 		PendingBorrows:      stats.PendingBorrows,
+		PendingRenewals:     stats.PendingRenewals,
 		PendingReservations: stats.PendingReservations,
+		OverdueCount:        stats.OverdueCount,
 	})
 }

@@ -12,18 +12,19 @@ import (
 
 // Dependencies 路由装配所需依赖。
 type Dependencies struct {
-	AuthHandler        *handler.AuthHandler
-	UserHandler        *handler.UserHandler
-	CategoryHandler    *handler.CategoryHandler
-	EquipmentHandler   *handler.EquipmentHandler
-	BorrowHandler      *handler.BorrowHandler
-	MaintenanceHandler *handler.MaintenanceHandler
-	ReservationHandler *handler.ReservationHandler
-	DashboardHandler   *handler.DashboardHandler
-	AuditHandler       *handler.AuditHandler
-	AuthService        *service.AuthService
-	AuditService       *service.AuditService
-	Logger             *slog.Logger
+	AuthHandler          *handler.AuthHandler
+	UserHandler          *handler.UserHandler
+	CategoryHandler      *handler.CategoryHandler
+	EquipmentHandler     *handler.EquipmentHandler
+	BorrowHandler        *handler.BorrowHandler
+	BorrowRenewalHandler *handler.BorrowRenewalHandler
+	MaintenanceHandler   *handler.MaintenanceHandler
+	ReservationHandler   *handler.ReservationHandler
+	DashboardHandler     *handler.DashboardHandler
+	AuditHandler         *handler.AuditHandler
+	AuthService          *service.AuthService
+	AuditService         *service.AuditService
+	Logger               *slog.Logger
 }
 
 // NewRouter 装配全部路由。
@@ -51,6 +52,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		registerCategoryRoutes(authed, deps)
 		registerEquipmentRoutes(authed, deps)
 		registerBorrowRoutes(authed, deps)
+		registerBorrowRenewalRoutes(authed, deps)
 		registerMaintenanceRoutes(authed, deps)
 		registerReservationRoutes(authed, deps)
 		registerDashboardRoutes(authed, deps)

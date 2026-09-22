@@ -16,6 +16,14 @@ export const BorrowStatus = {
 } as const
 export type BorrowStatus = (typeof BorrowStatus)[keyof typeof BorrowStatus]
 
+export const RenewalStatus = {
+  Pending: 'Pending',
+  Approved: 'Approved',
+  Rejected: 'Rejected',
+  Expired: 'Expired'
+} as const
+export type RenewalStatus = (typeof RenewalStatus)[keyof typeof RenewalStatus]
+
 export const MaintenanceType = {
   Preventive: 'Preventive',
   Corrective: 'Corrective',

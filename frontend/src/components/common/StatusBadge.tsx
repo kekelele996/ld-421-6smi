@@ -16,6 +16,7 @@ const defaultMap: Record<string, { color: string; text?: string }> = {
   Rejected: { color: 'red', text: '已驳回' },
   Returned: { color: 'cyan', text: '已归还' },
   Overdue: { color: 'volcano', text: '已逾期' },
+  Expired: { color: 'default', text: '已失效' },
   Cancelled: { color: 'default', text: '已取消' },
   Preventive: { color: 'blue', text: '预防性维护' },
   Corrective: { color: 'orange', text: '纠正性维护' },

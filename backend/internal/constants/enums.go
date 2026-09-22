@@ -61,6 +61,34 @@ func (s BorrowStatus) Valid() bool {
 	return false
 }
 
+// RenewalStatus 续借申请状态。
+type RenewalStatus string
+
+const (
+	RenewalStatusPending  RenewalStatus = "Pending"
+	RenewalStatusApproved RenewalStatus = "Approved"
+	RenewalStatusRejected RenewalStatus = "Rejected"
+	RenewalStatusExpired  RenewalStatus = "Expired"
+)
+
+func AllRenewalStatus() []RenewalStatus {
+	return []RenewalStatus{
+		RenewalStatusPending,
+		RenewalStatusApproved,
+		RenewalStatusRejected,
+		RenewalStatusExpired,
+	}
+}
+
+func (s RenewalStatus) Valid() bool {
+	for _, v := range AllRenewalStatus() {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
 // MaintenanceType 维护类型。
 type MaintenanceType string
 

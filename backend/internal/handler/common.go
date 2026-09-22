@@ -77,3 +77,13 @@ func parsePage(c *gin.Context) (int, int) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 	return page, pageSize
 }
+
+// parseUintParam 解析查询参数中的无符号整数，非法时写入错误响应。
+func parseUintParam(c *gin.Context, value string) (uint, bool) {
+	id, err := strconv.ParseUint(value, 10, 64)
+	if err != nil || id == 0 {
+		fail(c, http.StatusBadRequest, constants.CodeBadRequest, "无效的参数")
+		return 0, false
+	}
+	return uint(id), true
+}

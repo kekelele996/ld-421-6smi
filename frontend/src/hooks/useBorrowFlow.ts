@@ -1,6 +1,14 @@
 import { useState } from 'react'
-import { approveBorrow, createBorrow, rejectBorrow, returnBorrow } from '../api/borrow'
-import type { CreateBorrowPayload, ReturnBorrowPayload } from '../types'
+import {
+  applyRenewal as applyRenewalApi,
+  approveBorrow,
+  approveRenewal as approveRenewalApi,
+  createBorrow,
+  rejectBorrow,
+  rejectRenewal as rejectRenewalApi,
+  returnBorrow
+} from '../api/borrow'
+import type { CreateBorrowPayload, CreateRenewalPayload, ReturnBorrowPayload } from '../types'
 
 const STATUS_STEP: Record<string, number> = {
   Pending: 0,
@@ -50,9 +58,36 @@ export function useBorrowFlow() {
     }
   }
 
+  const applyRenew = async (borrowId: number | string, payload: CreateRenewalPayload) => {
+    setLoading(true)
+    try {
+      return await applyRenewalApi(borrowId, payload)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const approveRenew = async (id: number | string) => {
+    setLoading(true)
+    try {
+      await approveRenewalApi(id)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const rejectRenew = async (id: number | string, comment?: string) => {
+    setLoading(true)
+    try {
+      await rejectRenewalApi(id, comment)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const stepOf = (status: string) => STATUS_STEP[status] ?? 0
 
-  return { loading, submit, approve, reject, confirmReturn, stepOf }
+  return { loading, submit, approve, reject, confirmReturn, applyRenew, approveRenew, rejectRenew, stepOf }
 }
 
 export default useBorrowFlow
