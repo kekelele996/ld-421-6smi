@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/labequipment/lab-equipment/internal/constants"
 	"github.com/labequipment/lab-equipment/internal/dto"
 	"github.com/labequipment/lab-equipment/internal/model"
 )
@@ -55,6 +56,24 @@ func mapEquipment(equipment model.Equipment) dto.EquipmentResponse {
 	}
 }
 
+func mapRenewal(renewal model.BorrowRenewal) dto.RenewalResponse {
+	reviewerName := ""
+	if renewal.Reviewer != nil {
+		reviewerName = renewal.Reviewer.Name
+	}
+	return dto.RenewalResponse{
+		ID:           renewal.ID,
+		BorrowID:     renewal.BorrowID,
+		ExtendDays:   renewal.ExtendDays,
+		NewDueDate:   renewal.NewDueDate,
+		Status:       string(renewal.Status),
+		ReviewerID:   renewal.ReviewerID,
+		ReviewerName: reviewerName,
+		ReviewReason: renewal.ReviewReason,
+		CreatedAt:    renewal.CreatedAt,
+	}
+}
+
 func mapBorrow(record model.BorrowRecord) dto.BorrowResponse {
 	equipmentName := ""
 	equipmentCode := ""
@@ -75,6 +94,16 @@ func mapBorrow(record model.BorrowRecord) dto.BorrowResponse {
 		value := string(*record.ReturnCondition)
 		returnCondition = &value
 	}
+	renewals := make([]dto.RenewalResponse, 0, len(record.Renewals))
+	var pendingRenewal *dto.RenewalResponse
+	for i := range record.Renewals {
+		mapped := mapRenewal(record.Renewals[i])
+		renewals = append(renewals, mapped)
+		if record.Renewals[i].Status == constants.RenewalStatusPending {
+			pending := mapped
+			pendingRenewal = &pending
+		}
+	}
 	return dto.BorrowResponse{
 		ID:                 record.ID,
 		EquipmentID:        record.EquipmentID,
@@ -84,14 +113,25 @@ func mapBorrow(record model.BorrowRecord) dto.BorrowResponse {
 		BorrowerName:       borrowerName,
 		BorrowDate:         record.BorrowDate,
 		ExpectedReturnDate: record.ExpectedReturnDate,
+		OriginalDueDate:    record.OriginalDueDate,
 		ActualReturnDate:   record.ActualReturnDate,
 		Reason:             record.Reason,
 		Status:             string(record.Status),
 		ApproverID:         record.ApproverID,
 		ApproverName:       approverName,
 		ReturnCondition:    returnCondition,
+		PendingRenewal:     pendingRenewal,
+		Renewals:           renewals,
 		CreatedAt:          record.CreatedAt,
 	}
+}
+
+func mapRenewalList(list []model.BorrowRenewal) []dto.RenewalResponse {
+	items := make([]dto.RenewalResponse, 0, len(list))
+	for i := range list {
+		items = append(items, mapRenewal(list[i]))
+	}
+	return items
 }
 
 func mapMaintenance(record model.MaintenanceRecord) dto.MaintenanceResponse {

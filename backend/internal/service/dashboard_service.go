@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/labequipment/lab-equipment/internal/model"
 	"github.com/labequipment/lab-equipment/internal/repository"
@@ -13,6 +14,7 @@ import (
 type DashboardService struct {
 	equipmentRepo   repository.EquipmentRepository
 	borrowRepo      repository.BorrowRepository
+	renewalRepo     repository.RenewalRepository
 	reservationRepo repository.ReservationRepository
 	logger          *slog.Logger
 }
@@ -21,14 +23,19 @@ type DashboardService struct {
 func NewDashboardService(
 	equipmentRepo repository.EquipmentRepository,
 	borrowRepo repository.BorrowRepository,
+	renewalRepo repository.RenewalRepository,
 	reservationRepo repository.ReservationRepository,
 	logger *slog.Logger,
 ) *DashboardService {
-	return &DashboardService{equipmentRepo: equipmentRepo, borrowRepo: borrowRepo, reservationRepo: reservationRepo, logger: logger}
+	return &DashboardService{equipmentRepo: equipmentRepo, borrowRepo: borrowRepo, renewalRepo: renewalRepo, reservationRepo: reservationRepo, logger: logger}
 }
 
 // Stats 聚合仪表盘所需统计。
 func (s *DashboardService) Stats(ctx context.Context) (*DashboardStats, error) {
+	// 先同步逾期，保证总览中的逾期数量与列表一致。
+	if _, err := s.borrowRepo.MarkOverdue(ctx, time.Now()); err != nil {
+		return nil, fmt.Errorf("dashboard sync overdue: %w", err)
+	}
 	statusMap, err := s.equipmentRepo.CountByStatus(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("dashboard status distribution: %w", err)
@@ -45,6 +52,14 @@ func (s *DashboardService) Stats(ctx context.Context) (*DashboardStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dashboard pending borrows: %w", err)
 	}
+	overdueBorrows, err := s.borrowRepo.CountOverdue(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("dashboard overdue borrows: %w", err)
+	}
+	pendingRenewals, err := s.renewalRepo.CountPending(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("dashboard pending renewals: %w", err)
+	}
 	pendingReservations, err := s.reservationRepo.CountPending(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("dashboard pending reservations: %w", err)
@@ -58,6 +73,8 @@ func (s *DashboardService) Stats(ctx context.Context) (*DashboardStats, error) {
 		TopBorrows:          topBorrows,
 		ExpiringWarranty:    expiring,
 		PendingBorrows:      pendingBorrows,
+		OverdueBorrows:      overdueBorrows,
+		PendingRenewals:     pendingRenewals,
 		PendingReservations: pendingReservations,
 	}, nil
 }
@@ -68,5 +85,7 @@ type DashboardStats struct {
 	TopBorrows          []repository.BorrowTopStat
 	ExpiringWarranty    []model.Equipment
 	PendingBorrows      int64
+	OverdueBorrows      int64
+	PendingRenewals     int64
 	PendingReservations int64
 }

@@ -18,6 +18,9 @@ type BorrowRepository interface {
 	FindByID(ctx context.Context, id uint) (*model.BorrowRecord, error)
 	List(ctx context.Context, filter BorrowFilter) ([]model.BorrowRecord, int64, error)
 	CountPending(ctx context.Context) (int64, error)
+	CountOverdue(ctx context.Context) (int64, error)
+	// MarkOverdue 将预计归还日已过的已审批借用置为逾期，并同步关闭其待审批续借申请。
+	MarkOverdue(ctx context.Context, now time.Time) (int64, error)
 	TopEquipmentThisMonth(ctx context.Context, limit int) ([]BorrowTopStat, error)
 }
 
@@ -62,7 +65,10 @@ func (r *borrowRepository) Update(ctx context.Context, record *model.BorrowRecor
 
 func (r *borrowRepository) FindByID(ctx context.Context, id uint) (*model.BorrowRecord, error) {
 	var record model.BorrowRecord
-	err := r.db.WithContext(ctx).Preload("Equipment.Category").Preload("Borrower.Role").Preload("Approver.Role").First(&record, id).Error
+	err := r.db.WithContext(ctx).
+		Preload("Equipment.Category").Preload("Borrower.Role").Preload("Approver.Role").
+		Preload("Renewals", func(db *gorm.DB) *gorm.DB { return db.Order("id ASC") }).
+		First(&record, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrNotFound
 	}
@@ -74,7 +80,9 @@ func (r *borrowRepository) FindByID(ctx context.Context, id uint) (*model.Borrow
 
 func (r *borrowRepository) List(ctx context.Context, filter BorrowFilter) ([]model.BorrowRecord, int64, error) {
 	filter.Normalize()
-	query := r.db.WithContext(ctx).Model(&model.BorrowRecord{}).Preload("Equipment.Category").Preload("Borrower.Role").Preload("Approver.Role")
+	query := r.db.WithContext(ctx).Model(&model.BorrowRecord{}).
+		Preload("Equipment.Category").Preload("Borrower.Role").Preload("Approver.Role").
+		Preload("Renewals", func(db *gorm.DB) *gorm.DB { return db.Order("id ASC") })
 	if filter.Status.Valid() {
 		query = query.Where("status = ?", filter.Status)
 	}
@@ -103,6 +111,54 @@ func (r *borrowRepository) CountPending(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("count pending borrow records: %w", err)
 	}
 	return count, nil
+}
+
+func (r *borrowRepository) CountOverdue(ctx context.Context) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&model.BorrowRecord{}).
+		Where("status = ?", constants.BorrowStatusOverdue).
+		Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("count overdue borrow records: %w", err)
+	}
+	return count, nil
+}
+
+// MarkOverdue 扫描已审批且超过预计归还日的借用：置为逾期，并将其待审批续借申请驳回。
+// 整个操作在单个事务内完成，重复调用幂等，返回本次受影响（进入逾期）的借用数量。
+func (r *borrowRepository) MarkOverdue(ctx context.Context, now time.Time) (int64, error) {
+	var affected int64
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var borrowIDs []uint
+		if err := tx.Model(&model.BorrowRecord{}).
+			Where("status = ? AND expected_return_date < ?", constants.BorrowStatusApproved, now).
+			Pluck("id", &borrowIDs).Error; err != nil {
+			return fmt.Errorf("find due borrow records: %w", err)
+		}
+		affected = int64(len(borrowIDs))
+		if len(borrowIDs) == 0 {
+			return nil
+		}
+		if err := tx.Model(&model.BorrowRecord{}).
+			Where("id IN ?", borrowIDs).
+			Update("status", constants.BorrowStatusOverdue).Error; err != nil {
+			return fmt.Errorf("mark borrow records overdue: %w", err)
+		}
+		// 逾期后待审批续借自动驳回，不改变借用本身的归还日期。
+		if err := tx.Model(&model.BorrowRenewal{}).
+			Where("borrow_id IN ? AND status = ?", borrowIDs, constants.RenewalStatusPending).
+			Updates(map[string]any{
+				"status":            constants.RenewalStatusRejected,
+				"review_reason":     "借用已逾期，续借申请自动驳回",
+				"pending_borrow_id": nil,
+			}).Error; err != nil {
+			return fmt.Errorf("auto reject pending renewals: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return affected, nil
 }
 
 func (r *borrowRepository) TopEquipmentThisMonth(ctx context.Context, limit int) ([]BorrowTopStat, error) {

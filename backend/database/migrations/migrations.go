@@ -15,6 +15,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.EquipmentCategory{},
 		&model.Equipment{},
 		&model.BorrowRecord{},
+		&model.BorrowRenewal{},
 		&model.MaintenanceRecord{},
 		&model.Reservation{},
 		&model.AuditLog{},

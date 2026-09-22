@@ -46,6 +46,8 @@ func (h *DashboardHandler) Stats(c *gin.Context) {
 		TopBorrows:          topBorrows,
 		ExpiringWarranty:    expiring,
 		PendingBorrows:      stats.PendingBorrows,
+		OverdueBorrows:      stats.OverdueBorrows,
+		PendingRenewals:     stats.PendingRenewals,
 		PendingReservations: stats.PendingReservations,
 	})
 }

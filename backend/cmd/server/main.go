@@ -89,6 +89,7 @@ func run(cfg *config.Config, log *slog.Logger) error {
 	categoryRepo := repository.NewCategoryRepository(db)
 	equipmentRepo := repository.NewEquipmentRepository(db)
 	borrowRepo := repository.NewBorrowRepository(db)
+	renewalRepo := repository.NewRenewalRepository(db)
 	maintenanceRepo := repository.NewMaintenanceRepository(db)
 	reservationRepo := repository.NewReservationRepository(db)
 	auditRepo := repository.NewAuditLogRepository(db)
@@ -99,10 +100,11 @@ func run(cfg *config.Config, log *slog.Logger) error {
 	userService := service.NewUserService(userRepo, log)
 	categoryService := service.NewCategoryService(categoryRepo, log)
 	equipmentService := service.NewEquipmentService(equipmentRepo, categoryRepo, userRepo, auditService, log)
-	borrowService := service.NewBorrowService(borrowRepo, equipmentRepo, auditService, log)
+	borrowService := service.NewBorrowService(borrowRepo, renewalRepo, equipmentRepo, auditService, log)
+	renewalService := service.NewRenewalService(renewalRepo, borrowRepo, auditService, log)
 	maintenanceService := service.NewMaintenanceService(maintenanceRepo, equipmentRepo, auditService, log)
 	reservationService := service.NewReservationService(reservationRepo, equipmentRepo, auditService, log)
-	dashboardService := service.NewDashboardService(equipmentRepo, borrowRepo, reservationRepo, log)
+	dashboardService := service.NewDashboardService(equipmentRepo, borrowRepo, renewalRepo, reservationRepo, log)
 
 	// 处理器层
 	deps := router.Dependencies{
@@ -111,6 +113,7 @@ func run(cfg *config.Config, log *slog.Logger) error {
 		CategoryHandler:    handler.NewCategoryHandler(categoryService),
 		EquipmentHandler:   handler.NewEquipmentHandler(equipmentService),
 		BorrowHandler:      handler.NewBorrowHandler(borrowService),
+		RenewalHandler:     handler.NewRenewalHandler(renewalService),
 		MaintenanceHandler: handler.NewMaintenanceHandler(maintenanceService),
 		ReservationHandler: handler.NewReservationHandler(reservationService),
 		DashboardHandler:   handler.NewDashboardHandler(dashboardService),

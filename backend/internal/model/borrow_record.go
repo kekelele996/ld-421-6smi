@@ -13,6 +13,7 @@ type BorrowRecord struct {
 	BorrowerID         uint                       `gorm:"index;not null" json:"borrowerId"`
 	BorrowDate         time.Time                  `json:"borrowDate"`
 	ExpectedReturnDate time.Time                  `json:"expectedReturnDate"`
+	OriginalDueDate    *time.Time                 `json:"originalDueDate"`
 	ActualReturnDate   *time.Time                 `json:"actualReturnDate"`
 	Reason             string                     `gorm:"size:512" json:"reason"`
 	Status             constants.BorrowStatus     `gorm:"size:32;index;not null;default:Pending" json:"status"`
@@ -21,6 +22,7 @@ type BorrowRecord struct {
 	Equipment          *Equipment                 `gorm:"foreignKey:EquipmentID" json:"equipment,omitempty"`
 	Borrower           *User                      `gorm:"foreignKey:BorrowerID" json:"borrower,omitempty"`
 	Approver           *User                      `gorm:"foreignKey:ApproverID" json:"approver,omitempty"`
+	Renewals           []BorrowRenewal            `gorm:"foreignKey:BorrowID" json:"renewals,omitempty"`
 }
 
 func (BorrowRecord) TableName() string { return "borrow_records" }

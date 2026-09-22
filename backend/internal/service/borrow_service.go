@@ -16,6 +16,7 @@ import (
 // BorrowService 借用记录业务服务。
 type BorrowService struct {
 	repo          repository.BorrowRepository
+	renewalRepo   repository.RenewalRepository
 	equipmentRepo repository.EquipmentRepository
 	audit         *AuditService
 	logger        *slog.Logger
@@ -24,11 +25,12 @@ type BorrowService struct {
 // NewBorrowService 构造借用服务。
 func NewBorrowService(
 	repo repository.BorrowRepository,
+	renewalRepo repository.RenewalRepository,
 	equipmentRepo repository.EquipmentRepository,
 	audit *AuditService,
 	logger *slog.Logger,
 ) *BorrowService {
-	return &BorrowService{repo: repo, equipmentRepo: equipmentRepo, audit: audit, logger: logger}
+	return &BorrowService{repo: repo, renewalRepo: renewalRepo, equipmentRepo: equipmentRepo, audit: audit, logger: logger}
 }
 
 // Create 提交借用申请。
@@ -128,6 +130,10 @@ func (s *BorrowService) Return(ctx context.Context, id uint, actualReturnDate ti
 	if err := s.repo.Update(ctx, record); err != nil {
 		return fmt.Errorf("return borrow record: %w", err)
 	}
+	// 归还后关闭续借入口，未处理的续借申请随之关闭。
+	if err := s.renewalRepo.DismissPendingByBorrow(ctx, id, "借用已归还，续借申请自动关闭"); err != nil {
+		return fmt.Errorf("dismiss pending renewals on return: %w", err)
+	}
 	equipment, err := s.equipmentRepo.FindByID(ctx, record.EquipmentID)
 	if err == nil {
 		if condition == constants.ReturnConditionLost {
@@ -145,8 +151,11 @@ func (s *BorrowService) Return(ctx context.Context, id uint, actualReturnDate ti
 	return nil
 }
 
-// Get 获取借用详情。
+// Get 获取借用详情。查询前先同步逾期状态，保证刷新后状态与日期一致。
 func (s *BorrowService) Get(ctx context.Context, id uint) (*model.BorrowRecord, error) {
+	if _, err := s.repo.MarkOverdue(ctx, todayStart(time.Now())); err != nil {
+		return nil, fmt.Errorf("sync overdue before get: %w", err)
+	}
 	record, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, s.mapNotFound(err)
@@ -154,13 +163,31 @@ func (s *BorrowService) Get(ctx context.Context, id uint) (*model.BorrowRecord, 
 	return record, nil
 }
 
-// List 分页查询借用记录。
+// List 分页查询借用记录。查询前先同步逾期状态，借用列表实时反映逾期。
 func (s *BorrowService) List(ctx context.Context, filter repository.BorrowFilter) ([]model.BorrowRecord, int64, error) {
+	if _, err := s.repo.MarkOverdue(ctx, todayStart(time.Now())); err != nil {
+		return nil, 0, fmt.Errorf("sync overdue before list: %w", err)
+	}
 	list, total, err := s.repo.List(ctx, filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list borrow records: %w", err)
 	}
 	return list, total, nil
+}
+
+// SyncOverdue 将已过预计归还日的已审批借用置为逾期，供其他服务复用。
+func (s *BorrowService) SyncOverdue(ctx context.Context, now time.Time) (int64, error) {
+	count, err := s.repo.MarkOverdue(ctx, todayStart(now))
+	if err != nil {
+		return 0, fmt.Errorf("sync overdue: %w", err)
+	}
+	return count, nil
+}
+
+// todayStart 返回当天零点，逾期判定与“预计归还日前提出”均按自然日比较。
+func todayStart(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, t.Location())
 }
 
 func (s *BorrowService) mapNotFound(err error) error {

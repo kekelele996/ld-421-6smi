@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Card, Col, List, Row, Skeleton } from 'antd'
-import { DashboardOutlined, SwapOutlined, CalendarOutlined } from '@ant-design/icons'
+import { DashboardOutlined, SwapOutlined, CalendarOutlined, ClockCircleOutlined, RedoOutlined } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
 import { fetchDashboardStats, type DashboardStats } from '../api/dashboard'
 import { AlertBanner } from '../components/common/AlertBanner'
 import { StatCard } from '../components/common/StatCard'
 import { StatusBadge } from '../components/common/StatusBadge'
-import { formatCurrency } from '../utils/formatCurrency'
 
 export function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
@@ -46,19 +45,35 @@ export function Dashboard() {
   return (
     <div>
       <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={24} sm={12} lg={8} xl={4}>
           <StatCard title="设备总数" value={totalEquipment} icon={<DashboardOutlined />} color="#1677ff" />
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={24} sm={12} lg={8} xl={4}>
           <StatCard title="待审批借用" value={stats?.pendingBorrows ?? 0} icon={<SwapOutlined />} color="#fa8c16" />
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={24} sm={12} lg={8} xl={4}>
+          <StatCard title="逾期借用" value={stats?.overdueBorrows ?? 0} icon={<ClockCircleOutlined />} color="#f5222d" />
+        </Col>
+        <Col xs={24} sm={12} lg={8} xl={4}>
+          <StatCard title="待审批续借" value={stats?.pendingRenewals ?? 0} icon={<RedoOutlined />} color="#13c2c2" />
+        </Col>
+        <Col xs={24} sm={12} lg={8} xl={4}>
           <StatCard title="待审批预约" value={stats?.pendingReservations ?? 0} icon={<CalendarOutlined />} color="#722ed1" />
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <StatCard title="即将过保设备" value={stats?.expiringWarranty.length ?? 0} color="#f5222d" />
+        <Col xs={24} sm={12} lg={8} xl={4}>
+          <StatCard title="即将过保设备" value={stats?.expiringWarranty.length ?? 0} color="#eb2f96" />
         </Col>
       </Row>
+
+      {(stats?.overdueBorrows ?? 0) > 0 ? (
+        <div style={{ marginTop: 16 }}>
+          <AlertBanner
+            type="error"
+            message={`当前有 ${stats?.overdueBorrows ?? 0} 笔借用已逾期未归还`}
+            description="逾期借用会在借用列表中同步标记为“已逾期”，且不可再申请续借，请尽快跟进归还。"
+          />
+        </div>
+      ) : null}
 
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} lg={12}>
@@ -101,14 +116,13 @@ export function Dashboard() {
       <Card title="借用状态快速预览" size="small" style={{ marginTop: 16 }}>
         <List
           dataSource={[
-            { name: '待审批', status: 'Pending' },
-            { name: '已通过', status: 'Approved' },
-            { name: '已归还', status: 'Returned' }
+            { name: '待审批借用', status: 'Pending', count: stats?.pendingBorrows ?? 0 },
+            { name: '已逾期借用', status: 'Overdue', count: stats?.overdueBorrows ?? 0 },
+            { name: '待审批续借', status: 'RenewalPending', count: stats?.pendingRenewals ?? 0 }
           ]}
           renderItem={(item) => (
-            <List.Item actions={[<StatusBadge key={item.status} status={item.status} />]}>
+            <List.Item actions={[<span key="count" style={{ fontWeight: 600 }}>{item.count}</span>, <StatusBadge key={item.status} status={item.status} />]}>
               <span>{item.name}</span>
-              <span style={{ color: '#999' }}>{formatCurrency(0)}</span>
             </List.Item>
           )}
         />

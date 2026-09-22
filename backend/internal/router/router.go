@@ -17,6 +17,7 @@ type Dependencies struct {
 	CategoryHandler    *handler.CategoryHandler
 	EquipmentHandler   *handler.EquipmentHandler
 	BorrowHandler      *handler.BorrowHandler
+	RenewalHandler     *handler.RenewalHandler
 	MaintenanceHandler *handler.MaintenanceHandler
 	ReservationHandler *handler.ReservationHandler
 	DashboardHandler   *handler.DashboardHandler
@@ -51,6 +52,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		registerCategoryRoutes(authed, deps)
 		registerEquipmentRoutes(authed, deps)
 		registerBorrowRoutes(authed, deps)
+		registerRenewalRoutes(authed, deps)
 		registerMaintenanceRoutes(authed, deps)
 		registerReservationRoutes(authed, deps)
 		registerDashboardRoutes(authed, deps)

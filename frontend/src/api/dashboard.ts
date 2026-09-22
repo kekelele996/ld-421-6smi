@@ -6,6 +6,8 @@ export interface DashboardStats {
   topBorrows: { equipmentId: number; name: string; code: string; count: number }[]
   expiringWarranty: { id: number; name: string; code: string; warrantyExpiry?: string }[]
   pendingBorrows: number
+  overdueBorrows: number
+  pendingRenewals: number
   pendingReservations: number
 }
 

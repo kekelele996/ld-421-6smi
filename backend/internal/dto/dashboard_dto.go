@@ -8,6 +8,8 @@ type DashboardStatsResponse struct {
 	TopBorrows          []TopBorrowItem  `json:"topBorrows"`
 	ExpiringWarranty    []ExpiringItem   `json:"expiringWarranty"`
 	PendingBorrows      int64            `json:"pendingBorrows"`
+	OverdueBorrows      int64            `json:"overdueBorrows"`
+	PendingRenewals     int64            `json:"pendingRenewals"`
 	PendingReservations int64            `json:"pendingReservations"`
 }
 
